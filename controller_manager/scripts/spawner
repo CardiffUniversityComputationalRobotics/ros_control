@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 # Copyright (c) 2008, Willow Garage, Inc.
 # All rights reserved.
 #
@@ -33,7 +33,8 @@
 # Author: Stuart Glaser
 
 import roslib, time
-roslib.load_manifest('controller_manager')
+
+roslib.load_manifest("controller_manager")
 import rosparam
 
 import rospy, sys
@@ -52,8 +53,9 @@ unload_controller_service = ""
 
 shutdown_timeout = 30.0
 
+
 def shutdown():
-    global loaded,unload_controller_service,load_controller_service,switch_controller_service,shutdown_timeout
+    global loaded, unload_controller_service, load_controller_service, switch_controller_service, shutdown_timeout
 
     rospy.loginfo("Shutting down spawner. Stopping and unloading controllers...")
     # NOTE: Sleep for one second to avoid race conditions inherent in wait_for_service
@@ -61,41 +63,69 @@ def shutdown():
 
     try:
         # unloader
-        unload_controller = rospy.ServiceProxy(unload_controller_service, UnloadController)
+        unload_controller = rospy.ServiceProxy(
+            unload_controller_service, UnloadController
+        )
         unload_controller.wait_for_service(timeout=shutdown_timeout)
 
         # switcher
-        switch_controller = rospy.ServiceProxy(switch_controller_service, SwitchController)
+        switch_controller = rospy.ServiceProxy(
+            switch_controller_service, SwitchController
+        )
         switch_controller.wait_for_service(timeout=shutdown_timeout)
 
-        rospy.loginfo("Stopping all controllers...");
+        rospy.loginfo("Stopping all controllers...")
         switch_controller([], loaded, SwitchControllerRequest.STRICT)
-        rospy.loginfo("Unloading all loaded controllers...");
+        rospy.loginfo("Unloading all loaded controllers...")
         for name in reversed(loaded):
             rospy.logout("Trying to unload %s" % name)
             unload_controller(name)
             rospy.logout("Succeeded in unloading %s" % name)
     except (rospy.ServiceException, rospy.exceptions.ROSException) as exc:
-        rospy.logwarn("Controller Spawner couldn't reach controller_manager to take down controllers. Waited for %g second(s)."  % (shutdown_timeout))
+        rospy.logwarn(
+            "Controller Spawner couldn't reach controller_manager to take down controllers. Waited for %g second(s)."
+            % (shutdown_timeout)
+        )
+
 
 def parse_args(args=None):
-    parser = argparse.ArgumentParser(description='Controller spawner')
-    parser.add_argument('--stopped', action='store_true',
-                        help='loads controllers, but does not start them')
-    parser.add_argument('--wait-for', metavar='topic', help='does not load or '
-                        'start controllers until it hears "True" on a topic (Bool)')
-    parser.add_argument('--namespace', metavar='ns',
-                        help='namespace of the controller_manager services')
-    parser.add_argument('--timeout', metavar='T', type=float, default=30,
-                        help='how long to wait for controller_manager services when starting up [s] (default: 30)')
-    parser.add_argument('--shutdown-timeout', metavar='T', type=float, default=30,
-                        help='how long to wait for controller_manager services when shutting down [s] (default: 30)')
-    parser.add_argument('controllers', metavar='controller', nargs='+',
-                        help='controllers to load')
+    parser = argparse.ArgumentParser(description="Controller spawner")
+    parser.add_argument(
+        "--stopped",
+        action="store_true",
+        help="loads controllers, but does not start them",
+    )
+    parser.add_argument(
+        "--wait-for",
+        metavar="topic",
+        help="does not load or "
+        'start controllers until it hears "True" on a topic (Bool)',
+    )
+    parser.add_argument(
+        "--namespace", metavar="ns", help="namespace of the controller_manager services"
+    )
+    parser.add_argument(
+        "--timeout",
+        metavar="T",
+        type=float,
+        default=30,
+        help="how long to wait for controller_manager services when starting up [s] (default: 30)",
+    )
+    parser.add_argument(
+        "--shutdown-timeout",
+        metavar="T",
+        type=float,
+        default=30,
+        help="how long to wait for controller_manager services when shutting down [s] (default: 30)",
+    )
+    parser.add_argument(
+        "controllers", metavar="controller", nargs="+", help="controllers to load"
+    )
     return parser.parse_args(args=args)
 
+
 def main():
-    global unload_controller_service,load_controller_service,switch_controller_service,shutdown_timeout
+    global unload_controller_service, load_controller_service, switch_controller_service, shutdown_timeout
 
     args = parse_args(rospy.myargv()[1:])
 
@@ -105,37 +135,47 @@ def main():
     timeout = args.timeout
     shutdown_timeout = args.shutdown_timeout
 
-    rospy.init_node('spawner', anonymous=True)
+    rospy.init_node("spawner", anonymous=True)
 
     # add a '/' to the namespace if needed
-    if robot_namespace and robot_namespace[-1] != '/':
-        robot_namespace = robot_namespace+'/'
+    if robot_namespace and robot_namespace[-1] != "/":
+        robot_namespace = robot_namespace + "/"
 
     # set service names based on namespace
-    load_controller_service = robot_namespace+"controller_manager/load_controller"
-    unload_controller_service = robot_namespace+"controller_manager/unload_controller"
-    switch_controller_service = robot_namespace+"controller_manager/switch_controller"
+    load_controller_service = robot_namespace + "controller_manager/load_controller"
+    unload_controller_service = robot_namespace + "controller_manager/unload_controller"
+    switch_controller_service = robot_namespace + "controller_manager/switch_controller"
 
     try:
         # loader
-        rospy.loginfo("Controller Spawner: Waiting for service "+load_controller_service)
+        rospy.loginfo(
+            "Controller Spawner: Waiting for service " + load_controller_service
+        )
         rospy.wait_for_service(load_controller_service, timeout=timeout)
         load_controller = rospy.ServiceProxy(load_controller_service, LoadController)
 
         # switcher
-        rospy.loginfo("Controller Spawner: Waiting for service "+switch_controller_service)
+        rospy.loginfo(
+            "Controller Spawner: Waiting for service " + switch_controller_service
+        )
         rospy.wait_for_service(switch_controller_service, timeout=timeout)
-        switch_controller = rospy.ServiceProxy(switch_controller_service, SwitchController)
+        switch_controller = rospy.ServiceProxy(
+            switch_controller_service, SwitchController
+        )
 
         # unloader
         # NOTE: We check for the unloader's existence here, although its used on shutdown because shutdown
         # should be fast. Further, we're interested in knowing if we have a compliant controller manager from
         # early on
-        rospy.loginfo("Controller Spawner: Waiting for service "+unload_controller_service)
+        rospy.loginfo(
+            "Controller Spawner: Waiting for service " + unload_controller_service
+        )
         rospy.wait_for_service(unload_controller_service, timeout=timeout)
 
     except rospy.exceptions.ROSException:
-        rospy.logwarn("Controller Spawner couldn't find the expected controller_manager ROS interface.")
+        rospy.logwarn(
+            "Controller Spawner couldn't find the expected controller_manager ROS interface."
+        )
         return
 
     if wait_for_topic:
@@ -149,6 +189,7 @@ def main():
         def wait_for_topic_cb(msg):
             wait_for_topic_result[0] = msg
             rospy.logdebug("Heard from wait-for topic: %s" % str(msg.data))
+
         rospy.Subscriber(wait_for_topic, Bool, wait_for_topic_cb)
         started_waiting = time.time()
 
@@ -161,8 +202,10 @@ def main():
             if not warned_about_not_hearing_anything:
                 if time.time() - started_waiting > timeout:
                     warned_about_not_hearing_anything = True
-                    rospy.logwarn("Controller Spawner hasn't heard anything from its \"wait for\" topic (%s)" % \
-                                      wait_for_topic)
+                    rospy.logwarn(
+                        'Controller Spawner hasn\'t heard anything from its "wait for" topic (%s)'
+                        % wait_for_topic
+                    )
         while not wait_for_topic_result[0].data:
             time.sleep(0.01)
             if rospy.is_shutdown():
@@ -176,7 +219,7 @@ def main():
     for name in args.controllers:
         if os.path.exists(name):
             # load yaml file onto the parameter server, using the namespace specified in the yaml file
-            rosparam.set_param("",open(name))
+            rosparam.set_param("", open(name))
             # list the controllers to be loaded
             name_yaml = yaml.load(open(name))
             for controller in name_yaml:
@@ -186,15 +229,15 @@ def main():
 
     # load controllers
     for name in controllers:
-        rospy.loginfo("Loading controller: "+name)
+        rospy.loginfo("Loading controller: " + name)
         resp = load_controller(name)
         if resp.ok != 0:
             loaded.append(name)
         else:
-            time.sleep(1) # give error message a chance to get out
+            time.sleep(1)  # give error message a chance to get out
             rospy.logerr("Failed to load %s" % name)
 
-    rospy.loginfo("Controller Spawner: Loaded controllers: %s" % ', '.join(loaded))
+    rospy.loginfo("Controller Spawner: Loaded controllers: %s" % ", ".join(loaded))
 
     if rospy.is_shutdown():
         return
@@ -203,10 +246,12 @@ def main():
     if autostart:
         resp = switch_controller(loaded, [], 2)
         if resp.ok != 0:
-            rospy.loginfo("Started controllers: %s" % ', '.join(loaded))
+            rospy.loginfo("Started controllers: %s" % ", ".join(loaded))
         else:
-            rospy.logerr("Failed to start controllers: %s" % ', '.join(loaded))
+            rospy.logerr("Failed to start controllers: %s" % ", ".join(loaded))
 
     rospy.spin()
 
-if __name__ == '__main__': main()
+
+if __name__ == "__main__":
+    main()
